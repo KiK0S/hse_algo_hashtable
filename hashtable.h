@@ -1,10 +1,7 @@
-#include <cassert>
-#include <algorithm>
 #include <functional>
-#include <list>
+#include <vector>
 #include <utility>
 #include <stdexcept>
-#include <iostream>
 
 template<class KeyType, class ValueType, class Hash = std::hash<KeyType> >
 class HashMap {
@@ -13,9 +10,12 @@ private:
     const size_t NUM_OF_CELLS = 10;
     std::vector<std::vector<std::pair<const KeyType, ValueType>>> table;
     size_t _size = 0;
+    /* size must be in [capacity / 4; capacity] */
     size_t capacity = 0;
+
+    /* stop the world: making capacity = size * 2, then replace elements to other table */
     void rebuild() {
-        capacity = std::max(NUM_OF_CELLS, _size * 2);
+        capacity = std::max(NUM_OF_CELLS, size() * 2);
         std::vector<std::vector<std::pair<const KeyType, ValueType>>> for_change(capacity);
         for (auto pair : (*this)) {
             size_t hash = hasher(pair.first) % capacity;
@@ -60,23 +60,21 @@ public:
             insert(*it);
         }
     }
-    HashMap(const HashMap& other): hasher(other.hasher), table(other.table), _size(other._size), capacity(other.capacity) {
-    }
+    HashMap(const HashMap& other): hasher(other.hasher), table(other.table), _size(other._size), capacity(other.capacity) {}
     HashMap& operator=(const HashMap& other) {
         hasher = other.hasher;
         capacity = other.capacity;
         table = std::vector<std::vector<std::pair<const KeyType, ValueType>>>(other.table);
-        _size = other._size;
+        _size = other.size();
         return *this;
     }
     HashMap& operator=(const HashMap&& other) {
         hasher = std::move(other.hasher);
         table = std::move(other.table);
-        _size = other._size;
+        _size = other.size();
         capacity = other.capacity;
         return *this;
     }
-
     size_t size() const {
         return _size;
     }
@@ -87,8 +85,7 @@ public:
         return hasher;
     }
     void insert(std::pair<const KeyType, ValueType> pair) {
-        size_t hash = hasher(pair.first);
-        hash %= capacity;
+        size_t hash = hasher(pair.first) % capacity;
         for (auto p : table[hash]) {
             if (p.first == pair.first) {
                 return;
@@ -96,16 +93,16 @@ public:
         }
         table[hash].push_back(pair);
         _size++;
-        if (_size * 2 > capacity) {
+        if (size() > capacity) {
             rebuild();
         }
     }
     void erase(KeyType key) {
-        size_t hash = hasher(key);
-        hash %= capacity;
+        size_t hash = hasher(key) % capacity;
         for (size_t i = 0; i < table[hash].size(); i++) {
             auto pair = table[hash][i];
             if (pair.first == key) {
+                /* erasing pair from cell */
                 std::vector<std::pair<const KeyType, ValueType>> new_vector;
                 for (size_t j = 0; j < i; j++) {
                     auto to_add = table[hash][j];
@@ -116,8 +113,9 @@ public:
                     new_vector.push_back(std::make_pair(to_add.first, to_add.second));
                 }
                 swap(table[hash], new_vector);
+                /* erased */
                 _size--;
-                if (_size * 4 < capacity) {
+                if (size() * 4 < capacity) {
                     rebuild();
                 }
                 break;
@@ -129,13 +127,17 @@ public:
         HashMap *outer = nullptr;
         size_t cell;
         size_t positon;
-    public:
-        iterator() {}
-        iterator(HashMap *outer, size_t _cell=0, size_t _positon=0): outer(outer), cell(_cell), positon(_positon) {
+        /* function to make sure iterator points to something valid (or to end) */
+        void fix() {
             while (cell < outer->table.size() && positon == outer->table[cell].size()) {
                 positon = 0;
                 cell++;
             }
+        }
+    public:
+        iterator() {}
+        iterator(HashMap *outer, size_t _cell=0, size_t _positon=0): outer(outer), cell(_cell), positon(_positon) {
+            fix();
         }
         iterator& operator=(const iterator& other) {
             cell = other.cell;
@@ -145,10 +147,7 @@ public:
         } 
         iterator operator++() {
             positon++;
-            while (cell < outer->table.size() && positon == outer->table[cell].size()) {
-                positon = 0;
-                cell++;
-            }
+            fix();
             return (*this);
         }
         iterator operator++(int) {
@@ -174,13 +173,17 @@ public:
         const HashMap *outer = nullptr;
         size_t cell;
         size_t positon;
-    public:
-        const_iterator() {}
-        const_iterator(const HashMap *outer, size_t _cell=0, size_t _positon=0): outer(outer), cell(_cell), positon(_positon) {
+        /* function to make sure iterator points to something valid (or to end) */
+        void fix() {
             while (cell < outer->table.size() && positon == outer->table[cell].size()) {
                 positon = 0;
                 cell++;
             }
+        }
+    public:
+        const_iterator() {}
+        const_iterator(const HashMap *outer, size_t _cell=0, size_t _positon=0): outer(outer), cell(_cell), positon(_positon) {
+            fix();
         }
         const_iterator& operator=(const const_iterator& other) {
             cell = other.cell;
@@ -190,10 +193,7 @@ public:
         } 
         const_iterator operator++() {
             positon++;
-            while (cell < outer->table.size() && positon == outer->table[cell].size()) {
-                positon = 0;
-                cell++;
-            }
+            fix();
             return (*this);
         }
         const_iterator operator++(int) {
@@ -202,7 +202,6 @@ public:
             return result;
         }
         const std::pair<const KeyType, ValueType>& operator*() const {
-            assert(outer != nullptr);
             return outer->table[cell][positon];
         }
         const std::pair<const KeyType, ValueType>* operator->() const {
@@ -228,8 +227,7 @@ public:
         return const_iterator(this, table.size(), 0);
     }
     iterator find(KeyType key) {
-        size_t hash = hasher(key);
-        hash %= capacity;
+        size_t hash = hasher(key) % capacity;
         for (size_t i = 0; i < table[hash].size(); i++) {
             if (table[hash][i].first == key) {
                 return iterator(this, hash, i);
@@ -238,8 +236,7 @@ public:
         return end();
     }
     const_iterator find(KeyType key) const {
-        size_t hash = hasher(key);
-        hash %= capacity;
+        size_t hash = hasher(key) % capacity;
         for (size_t i = 0; i < table[hash].size(); i++) {
             if (table[hash][i].first == key) {
                 return const_iterator(this, hash, i);
@@ -248,8 +245,7 @@ public:
         return end();    
     }
     ValueType& operator[](KeyType key) {
-        size_t hash = hasher(key);
-        hash %= capacity;
+        size_t hash = hasher(key) % capacity;
         for (auto &pair : table[hash]) {
             if (pair.first == key) {
                 return pair.second;
@@ -259,8 +255,7 @@ public:
         return (*this)[key];
     }
     const ValueType& at(KeyType key) const {
-        size_t hash = hasher(key);
-        hash %= capacity;
+        size_t hash = hasher(key) % capacity;
         for (auto &pair : table[hash]) {
             if (pair.first == key) {
                 return pair.second;
@@ -269,7 +264,7 @@ public:
         throw std::out_of_range("ooops, your key is not found");
     }
     void clear() {
-        for (int i = 0; i < capacity; i++) {
+        for (size_t i = 0; i < capacity; i++) {
             table[i].clear();
         }
         _size = 0;
