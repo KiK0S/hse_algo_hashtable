@@ -7,13 +7,15 @@ template<class KeyType, class ValueType, class Hash = std::hash<KeyType> >
 class HashMap {
 private:
     Hash hasher;
-    const size_t NUM_OF_CELLS = 10;
     std::vector<std::vector<std::pair<const KeyType, ValueType>>> table;
+
+    /* size must be in [capacity / 4; max(capacity, NUM_OF_CELLS)] */
     size_t _size = 0;
-    /* size must be in [capacity / 4; capacity] */
     size_t capacity = 0;
+    const size_t NUM_OF_CELLS = 10;
 
     /* stop the world: making capacity = size * 2, then replace elements to other table */
+    /* linear complexity */
     void rebuild() {
         capacity = std::max(NUM_OF_CELLS, size() * 2);
         std::vector<std::vector<std::pair<const KeyType, ValueType>>> for_change(capacity);
@@ -84,6 +86,8 @@ public:
     Hash hash_function() const {
         return hasher;
     }
+
+    /* complexity is linear from cell size, but we assume size is O(1) */
     void insert(std::pair<const KeyType, ValueType> pair) {
         size_t hash = hasher(pair.first) % capacity;
         for (auto p : table[hash]) {
@@ -97,6 +101,7 @@ public:
             rebuild();
         }
     }
+    /* complexity is linear from cell size, but we assume size is O(1) */
     void erase(KeyType key) {
         size_t hash = hasher(key) % capacity;
         for (size_t i = 0; i < table[hash].size(); i++) {
@@ -113,7 +118,6 @@ public:
                     new_vector.push_back(std::make_pair(to_add.first, to_add.second));
                 }
                 swap(table[hash], new_vector);
-                /* erased */
                 _size--;
                 if (size() * 4 < capacity) {
                     rebuild();
@@ -122,11 +126,14 @@ public:
             }
         }
     }
+
     class iterator {
     private:
+        /* iterator points to outer->table[cell][positon] */
         HashMap *outer = nullptr;
         size_t cell;
         size_t positon;
+
         /* function to make sure iterator points to something valid (or to end) */
         void fix() {
             while (cell < outer->table.size() && positon == outer->table[cell].size()) {
@@ -170,9 +177,11 @@ public:
     };
     class const_iterator {
     private:
+        /* iterator points to outer->table[cell][positon] */
         const HashMap *outer = nullptr;
         size_t cell;
         size_t positon;
+        
         /* function to make sure iterator points to something valid (or to end) */
         void fix() {
             while (cell < outer->table.size() && positon == outer->table[cell].size()) {
