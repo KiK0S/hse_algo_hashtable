@@ -3,6 +3,14 @@
 #include <utility>
 #include <stdexcept>
 
+/* General class for hashtable with closed addressing.
+   Basic interface is:
+      1. Insert an element by key.
+      2. Find an element by key.
+      3. Erase an element by key.
+   Key must be unique.
+   Complexity is amortized O(1) for a query.
+   Memory is linear from number of elements inside the table. */
 template<class KeyType, class ValueType, class Hash = std::hash<KeyType> >
 class HashMap {
   public:
@@ -140,6 +148,10 @@ class HashMap {
         }
     }
 
+    /* Iterator for the hash map
+       Contains pointer to the HashMap object, and two parameters: cell and positon.
+       It means that iterator points to value stored in table[cell][positon].
+       If iterator points to end of table, it has cell = table.size(). */
     class iterator {
     private:
         // Iterator points to outer->table[cell][positon]
@@ -188,6 +200,11 @@ class HashMap {
             return !(*this == other);
         }
     };
+
+    /* Const iterator for the hash map
+       Contains pointer to the HashMap object, and two parameters: cell and positon.
+       It means that iterator points to value stored in table[cell][positon].
+       If iterator points to end of table, it has cell = table.size(). */
     class const_iterator {
     private:
         // Iterator points to outer->table[cell][positon].
