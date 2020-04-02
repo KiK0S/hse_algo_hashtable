@@ -14,13 +14,15 @@
 template<class KeyType, class ValueType, class Hash = std::hash<KeyType> >
 class HashMap {
   public:
-    // Default number of cells.
+    // Minimal number of cells. Also used for initialization.
     static const size_t NUM_OF_CELLS;
+    static const size_t SCALE;
   private:
     Hash hasher_;
     std::vector<std::vector<std::pair<const KeyType, ValueType>>> table_;
 
-    // Size must be in [capacity / 4; max(capacity, NUM_OF_CELLS)].
+    // Size must be in [capacity / 4; capacity].
+    // Capacity not less than NUM_OF_CELLS.
     size_t current_size_= 0;
     size_t current_capacity_ = 0;
 
@@ -35,15 +37,18 @@ class HashMap {
         }
         swap(table_, for_change);
     }
+
   public:
     HashMap(): hasher_() {
         table_.resize(HashMap::NUM_OF_CELLS);
         current_capacity_ = HashMap::NUM_OF_CELLS;
     }
+    
     HashMap(const Hash& hash_function): hasher_(hash_function) {
         table_.resize(HashMap::NUM_OF_CELLS);
         current_capacity_ = HashMap::NUM_OF_CELLS;
     }
+    
     template<class ForwardIterator>
     HashMap(ForwardIterator begin, ForwardIterator end) {
         hasher_ = Hash();
@@ -54,6 +59,7 @@ class HashMap {
             ++begin;
         }
     }
+    
     template<class ForwardIterator>
     HashMap(ForwardIterator begin, ForwardIterator end, const Hash& hash_function) {
         hasher_ = hash_function;
@@ -64,6 +70,7 @@ class HashMap {
             ++begin;
         }
     }
+    
     HashMap(std::initializer_list<std::pair<KeyType, ValueType>> initializer_list, Hash hash_function = Hash()) {
         hasher_ = hash_function;
         table_.resize(HashMap::NUM_OF_CELLS);
@@ -72,7 +79,9 @@ class HashMap {
             insert(*it);
         }
     }
+    
     HashMap(const HashMap& other): hasher_(other.hasher_), table_(other.table_), current_size_(other.current_size_), current_capacity_(other.current_capacity_) {}
+    
     HashMap& operator=(const HashMap& other) {
         hasher_ = other.hasher_;
         current_capacity_ = other.current_capacity_;
@@ -80,6 +89,7 @@ class HashMap {
         current_size_ = other.size();
         return *this;
     }
+
     HashMap& operator=(const HashMap&& other) {
         hasher_ = std::move(other.hasher_);
         table_ = std::move(other.table_);
@@ -88,22 +98,19 @@ class HashMap {
         return *this;
     }
     
-    // Returns number of elements in the map.
     size_t size() const {
         return current_size_;
     }
     
-    // Returns true if map is empty.
     bool empty() const {
         return size() == 0;
     }
 
-    // Returns the hasher used in map.
     Hash hash_function() const {
         return hasher_;
     }
 
-    /* Insert an element into the hash table_ by its key.
+    /* Insert an element into the hashtable by its key.
        Complexity is linear from cell size, but we assume size is O(1).
        If size becomes more than capacity, we do stop-the-world rebuild which takes O(total_size) time. */
     void insert(std::pair<const KeyType, ValueType> pair) {
@@ -140,7 +147,7 @@ class HashMap {
                 }
                 swap(table_[hash], new_vector);
                 current_size_--;
-                if (size() * 4 < current_capacity_) {
+                if (size() * SCALE < current_capacity_) {
                     rebuild();
                 }
                 break;
@@ -166,36 +173,45 @@ class HashMap {
                 cell++;
             }
         }
+
     public:
         iterator() {}
+        
         iterator(HashMap *outer, size_t cell=0, size_t positon=0): outer(outer), cell(cell), positon(positon) {
             fix();
         }
+        
         iterator& operator=(const iterator& other) {
             cell = other.cell;
             positon = other.positon;
             outer = other.outer;
             return (*this);
         } 
+        
         iterator operator++() {
             positon++;
             fix();
             return (*this);
         }
+        
         iterator operator++(int) {
             iterator result = (*this);
             ++(*this);
             return result;
         }
+        
         std::pair<const KeyType, ValueType>& operator*() const {
             return outer->table_[cell][positon];
         }
+        
         std::pair<const KeyType, ValueType>* operator->() const {
             return &(outer->table_[cell][positon]);
         }
+        
         bool operator==(const iterator& other) const {
             return std::tie(cell, positon, outer) == std::tie(other.cell, other.positon, other.outer);
         }
+        
         bool operator!=(const iterator& other) const {
             return !(*this == other);
         }
@@ -219,36 +235,45 @@ class HashMap {
                 cell++;
             }
         }
+
     public:
         const_iterator() {}
+        
         const_iterator(const HashMap *outer, size_t cell=0, size_t positon=0): outer(outer), cell(cell), positon(positon) {
             fix();
         }
+        
         const_iterator& operator=(const const_iterator& other) {
             cell = other.cell;
             positon = other.positon;
             outer = other.outer;
             return (*this);
         } 
+        
         const_iterator operator++() {
             positon++;
             fix();
             return (*this);
         }
+        
         const_iterator operator++(int) {
             const_iterator result = (*this);
             ++(*this);
             return result;
         }
+        
         const std::pair<const KeyType, ValueType>& operator*() const {
             return outer->table_[cell][positon];
         }
+        
         const std::pair<const KeyType, ValueType>* operator->() const {
             return &(outer->table_[cell][positon]);
         }
+        
         bool operator==(const const_iterator& other) const {
             return std::tie(cell, positon, outer) == std::tie(other.cell, other.positon, other.outer);
         }
+        
         bool operator!=(const const_iterator& other) const {
             return std::tie(cell, positon, outer) != std::tie(other.cell, other.positon, other.outer);
         }
@@ -299,7 +324,7 @@ class HashMap {
     }
 
     /* Return a value by key.
-       If key not found, creates new element in hash table with default value. */
+       If key not found, creates new element in hashtable with default value. */
     ValueType& operator[](KeyType key) {
         size_t hash = hasher_(key) % current_capacity_;
         for (auto &pair : table_[hash]) {
@@ -323,7 +348,7 @@ class HashMap {
         throw std::out_of_range("ooops, your key is not found");
     }
 
-    /* Clear the hash table
+    /* Clear the hashtable
        Complexity is linear from all the elements. */
     void clear() {
         for (size_t i = 0; i < current_capacity_; i++) {
@@ -336,3 +361,6 @@ class HashMap {
 
 template<class KeyType, class ValueType, class Hash>
 constexpr size_t HashMap<KeyType, ValueType, Hash>::NUM_OF_CELLS = 10;
+
+template<class KeyType, class ValueType, class Hash>
+constexpr size_t HashMap<KeyType, ValueType, Hash>::SCALE = 4;
