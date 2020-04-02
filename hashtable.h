@@ -177,7 +177,7 @@ class HashMap {
     public:
         iterator() {}
         
-        iterator(HashMap *outer, size_t cell=0, size_t positon=0): outer(outer), cell(cell), positon(positon) {
+        iterator(HashMap *outer, size_t cell = 0, size_t positon = 0): outer(outer), cell(cell), positon(positon) {
             fix();
         }
         
@@ -239,7 +239,7 @@ class HashMap {
     public:
         const_iterator() {}
         
-        const_iterator(const HashMap *outer, size_t cell=0, size_t positon=0): outer(outer), cell(cell), positon(positon) {
+        const_iterator(const HashMap *outer, size_t cell = 0, size_t positon = 0): outer(outer), cell(cell), positon(positon) {
             fix();
         }
         
