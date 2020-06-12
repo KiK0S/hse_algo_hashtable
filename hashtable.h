@@ -162,22 +162,22 @@ class HashMap {
         return hasher_;
     }
 
-    // an iterator which points to first cell
+    // Returns an iterator which points to first cell.
     iterator begin() {
         return iterator(this, 0, 0);
     }
 
-    // an iterator which points after last cell
+    // Returns an iterator which points after last cell.
     iterator end() {
         return iterator(this, table_.size(), 0);
     }
 
-    // an iterator which points to first cell
+    // Returns an iterator which points to first cell.
     const_iterator begin() const {
         return const_iterator(this, 0, 0);
     }
 
-    // an iterator which points after last cell
+    // Returns an iterator which points after last cell.
     const_iterator end() const {
         return const_iterator(this, table_.size(), 0);
     }
@@ -217,7 +217,7 @@ class HashMap {
         
         iterator(HashMap *outer, size_t cell = 0, size_t positon = 0):
                           outer(outer), cell(cell), positon(positon) {
-            make_valid();
+            find_valid_cell();
         }
         
         iterator& operator=(const iterator& other) {
@@ -229,10 +229,10 @@ class HashMap {
         
         /* If iterator points to the end of current cell after incrementing,
            iterator moves to next non-empty cell.
-           If iterator stays valid, make_valid does nothing. */
+           If iterator stays valid, find_valid_cell does nothing. */
         iterator operator++() {
             positon++;
-            make_valid();
+            find_valid_cell();
             return (*this);
         }
         
@@ -259,18 +259,19 @@ class HashMap {
         }
 
       private:
-        // Iterator points to outer->table_[cell][positon]
-        HashMap *outer = nullptr;
-        size_t cell;
-        size_t positon;
-
         // Moves iterator to next valid cell (or to end).
-        void make_valid() {
+        void find_valid_cell() {
             while (cell < outer->table_.size() && positon == outer->table_[cell].size()) {
                 positon = 0;
                 cell++;
             }
         }
+
+      private:
+        // Iterator points to outer->table_[cell][positon]
+        HashMap *outer = nullptr;
+        size_t cell;
+        size_t positon;
     };
 
     /* Const iterator for the hash map
@@ -283,7 +284,7 @@ class HashMap {
         
         const_iterator(const HashMap *outer, size_t cell = 0, size_t positon = 0):
                                 outer(outer), cell(cell), positon(positon) {
-            make_valid();
+            find_valid_cell();
         }
         
         const_iterator& operator=(const const_iterator& other) {
@@ -295,10 +296,10 @@ class HashMap {
         
         /* If iterator points to the end of current cell after incrementing,
            iterator moves to next non-empty cell.
-           If iterator stays valid, make_valid does nothing. */
+           If iterator stays valid, find_valid_cell does nothing. */
         const_iterator operator++() {
             positon++;
-            make_valid();
+            find_valid_cell();
             return (*this);
         }
         
@@ -325,29 +326,22 @@ class HashMap {
         }
 
       private:
-        // Iterator points to outer->table_[cell][positon].
-        const HashMap *outer = nullptr;
-        size_t cell;
-        size_t positon;
-
         // Moves iterator to next valid cell (or to end).
-        void make_valid() {
+        void find_valid_cell() {
             while (cell < outer->table_.size() && positon == outer->table_[cell].size()) {
                 positon = 0;
                 cell++;
             }
         }
+
+      private:
+        // Iterator points to outer->table_[cell][positon].
+        const HashMap *outer = nullptr;
+        size_t cell;
+        size_t positon;
     };
 
-    private:
-    Hash hasher_;
-    std::vector<std::vector<pair_ptr>> table_;
-
-    // Size must be in [capacity / 4; capacity].
-    // Capacity not less than MIN_NUM_OF_CELLS.
-    size_t current_size_= 0;
-    size_t current_capacity_ = 0;
-
+  private:
     /* Stop the world: making capacity = size * 2, then replace elements to other table.
        Complexity is O(size). */
     void rebuild() {
@@ -372,6 +366,15 @@ class HashMap {
             rebuild();
         }
     }
+
+  private:
+    Hash hasher_;
+    std::vector<std::vector<pair_ptr>> table_;
+
+    // Size must be in [capacity / 4; capacity].
+    // Capacity not less than MIN_NUM_OF_CELLS.
+    size_t current_size_= 0;
+    size_t current_capacity_ = 0;
 };
 
 template<class KeyType, class ValueType, class Hash>
