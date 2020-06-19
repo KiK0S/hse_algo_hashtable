@@ -19,7 +19,7 @@ class HashMap {
     static const size_t MIN_NUM_OF_CELLS;
     static const size_t SCALE;
 
-    using pair_ptr = std::shared_ptr<std::pair<const KeyType, ValueType>>;
+    using pair_ptr = std::unique_ptr<std::pair<const KeyType, ValueType>>;
 
     class iterator;
     class const_iterator;
@@ -65,14 +65,21 @@ class HashMap {
         }
     }
     
-    HashMap(const HashMap& other): hasher_(other.hasher_), table_(other.table_),
-                                   current_size_(other.current_size_), current_capacity_(other.current_capacity_) {}
+    HashMap(const HashMap& other): hasher_(other.hasher_) {
+        table_.resize(HashMap::MIN_NUM_OF_CELLS);
+        current_capacity_ = HashMap::MIN_NUM_OF_CELLS;
+        for (auto element : other) {
+            insert(element);
+        }
+    }
     
     HashMap& operator=(const HashMap& other) {
         hasher_ = other.hasher_;
-        current_capacity_ = other.current_capacity_;
-        table_ = std::vector<std::vector<pair_ptr>>(other.table_);
-        current_size_ = other.size();
+        table_.resize(HashMap::MIN_NUM_OF_CELLS);
+        current_capacity_ = HashMap::MIN_NUM_OF_CELLS;
+        for (auto element : other) {
+            insert(element);
+        }
         return *this;
     }
 
@@ -350,10 +357,10 @@ class HashMap {
         for (size_t i = 0; i < table_.size(); ++i) {
             for (auto &ptr : table_[i]) {
                 size_t hash = hasher_(ptr->first) % current_capacity_;
-                for_change[hash].push_back(ptr);
+                for_change[hash].push_back(std::move(ptr));
             }
         }
-        swap(table_, for_change);
+        table_.swap(for_change);
     }
 
     /* Checks that size belongs to [capacity / 4; capacity].
